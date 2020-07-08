@@ -102,7 +102,8 @@ public class HetuConnection
             if (rrn.isCallStatement() && "oracle".equalsIgnoreCase(getDbType())) {
                 // 存储过程暂时只支持oracle
                 ouputCallStatement(rrn, sc, orgin);
-            } else if (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW) {
+            } else if (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW ||
+                       sqlType == ServerParse.DESCRIBE) {
                 // WITH HARD CODE
                 // orgin = orgin.replace('`', '\"');
                 ouputResultSet(sc, orgin);
