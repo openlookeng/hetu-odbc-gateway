@@ -130,11 +130,13 @@ public class ExecutePacket extends MySQLPacket {
             bv.type = pstmt.getParametersType()[i];
             if ((nullBitMap[i / 8] & (1 << (i & 7))) != 0) {
                 bv.isNull = true;
+
+                if (pstmt.getLongDataMap().containsKey(Long.valueOf(i))) {
+                    bv.isNull = false;
+                    bv.value = pstmt.getLongData(i);
+                }
             } else {
                 BindValueUtil.read(mm, bv, charset);
-                if(bv.isLongData) {
-                	bv.value = pstmt.getLongData(i);
-                }
             }
             values[i] = bv;
         }
