@@ -40,10 +40,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 
 // based on JDBC connection
 public class HetuConnection
@@ -52,8 +53,11 @@ public class HetuConnection
 
     private volatile String catalog;
 
+    private volatile ConcurrentHashMap<String, Integer> prepareIdInfo;  //map for prepareId to real sqlType of the prepared statement
+
     public HetuConnection() {
         super();
+        prepareIdInfo = new ConcurrentHashMap<String, Integer>();
     }
 
     @Override
@@ -99,11 +103,20 @@ public class HetuConnection
 //            con.setSchema(schema);
 
             int sqlType = rrn.getSqlType();
+            int commandType = sqlType;
+
+            // for special sqlType, parse sqlType+prepareId+realSqlType
+            HetuSqlExecutionHub sqlHub = new HetuSqlExecutionHub(this, orgin, sqlType);
+            // need to find out whether it is a SELECT/SHOW/DESCRIBE command for EXECUTE statement
+            if (sqlType == ServerParse.EXECUTE) {
+                commandType = sqlHub.getCommandType();
+            }
+
             if (rrn.isCallStatement() && "oracle".equalsIgnoreCase(getDbType())) {
                 // 存储过程暂时只支持oracle
                 ouputCallStatement(rrn, sc, orgin);
-            } else if (sqlType == ServerParse.SELECT || sqlType == ServerParse.SHOW ||
-                       sqlType == ServerParse.DESCRIBE) {
+            } else if (commandType == ServerParse.SELECT || commandType == ServerParse.SHOW ||
+                       commandType == ServerParse.DESCRIBE) {
                 // WITH HARD CODE
                 // orgin = orgin.replace('`', '\"');
                 ouputResultSet(sc, orgin);
@@ -111,6 +124,7 @@ public class HetuConnection
                 executeddl(sc, orgin);
             }
 
+            sqlHub.postProc();
         } catch (SQLException e) {
             String msg = e.getMessage();
             LOGGER.error("Direct execute command raises error: " + "\n"
@@ -371,4 +385,167 @@ public class HetuConnection
         }
     }
 
+    public boolean addPrepareIdInfo(String prepareId, int commandType) {
+        return (prepareIdInfo.put(prepareId, commandType) != null);
+    }
+
+    public boolean removePrepareIdInfo(String prepareId) {
+        prepareIdInfo.remove(prepareId);
+        return true;
+    }
+
+    public int getPrepareCommandType(String prepareId) {
+        Integer type = prepareIdInfo.get(prepareId);
+        if (type != null) {
+            return type.intValue();
+        }
+
+        return ServerParse.OTHER;
+    }
+}
+
+// reparse sql statement and do prepareIdInfo managing for prepare class statement(PREPARE/EXECUTE/DEALLOCATE)
+class HetuSqlExecutionHub {
+    private HetuConnection connection;
+
+    private String statement; //whole sql statement
+
+    private int sqlType; //sql type of statement, see type define in io.mycat.server.parse.ServerParse
+
+    private String prepareId; //prepareId of statement, see defination of PREPARE/EXECUTE/DEALLOCATE
+
+    private int sqlCommandType; //sql command type after keyword prepare/execute/deallocate in statement, see type define in io.mycat.server.parse.ServerParse
+
+    /*  group(1): "PREPARE"
+        group(2): Any white space character/string
+        group(3): prepareId
+        group(4): Any white space character/string
+        group(5): "FROM"
+        group(6): Any white space character/string
+        group(7): sql statement to be prepare and execute
+    */
+    final static private Pattern patternPrepare = Pattern.compile("(PREPARE)(\\s+)(\\w+)(\\s+)(FROM)(\\s+)(.*)", Pattern.CASE_INSENSITIVE);
+
+    /*  group(1): "EXECUTE"
+        group(2): Any white space character/string
+        group(3): prepareId
+        group(4): Any white space character/string
+        group(5): character/string or nothing
+    */
+    final static private Pattern patternExecute = Pattern.compile("(EXECUTE)(\\s+)(\\w+)(\\s*)(.*)", Pattern.CASE_INSENSITIVE);
+
+    /*  group(1): "DEALLOCATE"
+        group(2): Any white space character/string
+        group(3): “PREPARE”
+        group(4): Any white space character/string
+        group(5): prepareId
+        group(6): Any white space character/string
+        group(7): character/string
+    */
+    final static private Pattern patternDeallocate = Pattern.compile("(DEALLOCATE)(\\s+)(PREPARE)(\\s+)(\\w+)(\\s*)(.*)", Pattern.CASE_INSENSITIVE);
+    
+    static public boolean isPrepareClassStatement(int sqlType) {
+        int type = sqlType & 0xff;
+
+        if ((type == ServerParse.PREPARE) || (type == ServerParse.EXECUTE) || (type == ServerParse.DEALLOCATE)) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    public HetuSqlExecutionHub(HetuConnection conn, String sql, int type) {
+        connection = conn;
+        statement  = sql;
+
+        sqlType = type & 0xff;
+        sqlCommandType = sqlType; //sqlCommandType is sqlType for normal statements
+
+        if (!isPrepareClassStatement(sqlType)) {
+            return;
+        }
+
+        parseStatement();
+    }
+
+    private void parsePrepare() {
+        Matcher m = patternPrepare.matcher(statement);
+        if (m.find()) {
+            // get prepareId and the real command statement(see defination of patternPrepare)
+            prepareId = m.group(3);
+            String command = m.group(7);
+            sqlCommandType = ServerParse.parse(command);
+            sqlCommandType = (sqlCommandType == ServerParse.OTHER)? sqlType : (sqlCommandType & 0xff);
+        }
+    }
+
+    private void parseExecute() {
+        Matcher m = patternExecute.matcher(statement);
+        if (m.find()) {
+            // get prepareId(see defination of patternExecute)
+            prepareId = m.group(3);
+            sqlCommandType = connection.getPrepareCommandType(prepareId);
+            sqlCommandType = (sqlCommandType == ServerParse.OTHER)? sqlType : (sqlCommandType & 0xff);
+        }
+    }
+
+    private void parseDeallocate() {
+        Matcher m = patternDeallocate.matcher(statement);
+        if (m.find()) {
+            // get prepareId(see defination of patternDeallocate)
+            prepareId = m.group(5);
+        }
+    }
+    
+    private void parseStatement() {
+        switch (sqlType) {
+            case ServerParse.PREPARE:
+                parsePrepare();
+                break;
+
+            case ServerParse.EXECUTE:
+                parseExecute();
+                break;
+
+            case ServerParse.DEALLOCATE:
+                parseDeallocate();
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    /* 1. record prepareId into container for PREPARE statement
+       2. remove prepareId from container for DEALLOCATE statement
+    */
+    public void postProc() {
+        if (!isPrepareClassStatement(sqlType)) {
+            return;
+        }
+
+        if (prepareId == null) {
+            return;
+        }
+
+        if (sqlType == ServerParse.PREPARE) {
+            connection.addPrepareIdInfo(prepareId, sqlCommandType);
+        }
+
+        if (sqlType == ServerParse.DEALLOCATE) {
+            connection.removePrepareIdInfo(prepareId);
+        }
+    }
+
+    public int getSqlType() {
+        return sqlType;
+    }
+
+    public String getPrepareId() {
+        return prepareId;
+    }
+
+    public int getCommandType() {
+        return sqlCommandType;
+    }
 }

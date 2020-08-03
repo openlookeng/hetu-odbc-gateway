@@ -58,6 +58,9 @@ public final class ServerParse {
 	public static final int DESCRIBE = 21;
 	public static final int LOCK = 22;
 	public static final int UNLOCK = 23;
+	public static final int PREPARE = 24;
+	public static final int EXECUTE = 25;
+	public static final int DEALLOCATE =  26; //deallocate prepare
     public static final int LOAD_DATA_INFILE_SQL = 99;
     public static final int DDL = 100;
     public static final int COMMAND = 101;
@@ -126,6 +129,10 @@ public final class ServerParse {
 				if (rt != OTHER) {
 					return rt;
 				}
+				rt = executeCheck(stmt, i);
+				if (rt != OTHER) {
+					return rt;
+				}
 				continue;
 			case 'I':
 			case 'i':
@@ -186,6 +193,13 @@ public final class ServerParse {
 			case 'L':
 			case 'l':
 				rt = lCheck(stmt, i);
+				if (rt != OTHER) {
+					return rt;
+				}
+				continue;
+			case 'P':
+			case 'p':
+				rt = prepareCheck(stmt, i);
 				if (rt != OTHER) {
 					return rt;
 				}
@@ -512,6 +526,31 @@ public final class ServerParse {
 
 	// DESCRIBE or desc or DELETE' '
 	static int dCheck(String stmt, int offset) {
+		// DEALLOCATE PREPARE' '
+		if (stmt.length() > offset + 10) {
+			char c1 = stmt.charAt(offset + 1);
+			char c2 = stmt.charAt(offset + 2);
+			char c3 = stmt.charAt(offset + 3);
+			char c4 = stmt.charAt(offset + 4);
+			char c5 = stmt.charAt(offset + 5);
+			char c6 = stmt.charAt(offset + 6);
+			char c7 = stmt.charAt(offset + 7);
+			char c8 = stmt.charAt(offset + 8);
+			char c9 = stmt.charAt(offset + 9);
+			char c10 = stmt.charAt(offset + 10);
+			if ((c1 == 'E' || c1 == 'e') && (c2 == 'A' || c2 == 'a')
+				            && (c3 == 'L' || c3 == 'l')
+				            && (c4 == 'L' || c4 == 'l')
+							&& (c5 == 'O' || c5 == 'o')
+				            && (c6 == 'C' || c6 == 'c')
+				            && (c7 == 'A' || c7 == 'a')
+				            && (c8 == 'T' || c8 == 't')
+				            && (c9 == 'E' || c9 == 'e')
+				            && (c10 == ' ' || c10 == '\t' || c10 == '\r' || c10 == '\n')) {
+				return DEALLOCATE;
+			}
+		
+		}
 		if (stmt.length() > offset + 4) {
 			int res = describeCheck(stmt, offset);
 			if (res == DESCRIBE) {
@@ -831,4 +870,49 @@ public final class ServerParse {
 		return OTHER;
 	}
 
+	// PREPARE
+	static int prepareCheck(String stmt, int offset) {
+		if (stmt.length() > offset + 7) {
+			char c1 = stmt.charAt(++offset);
+			char c2 = stmt.charAt(++offset);
+			char c3 = stmt.charAt(++offset);
+			char c4 = stmt.charAt(++offset);
+			char c5 = stmt.charAt(++offset);
+			char c6 = stmt.charAt(++offset);
+			char c7 = stmt.charAt(++offset);
+			if ((c1 == 'R' || c1 == 'r') && (c2 == 'E' || c2 == 'e')
+				            && (c3 == 'P' || c3 == 'p')
+				            && (c4 == 'A' || c4 == 'a')
+							&& (c5 == 'R' || c5 == 'r')
+				            && (c6 == 'E' || c6 == 'e')
+				            && (c7 == ' ' || c7 == '\t' || c7 == '\r' || c7 == '\n')) {
+				return PREPARE;
+			}
+		}
+
+		return OTHER;
+	}
+
+	// EXECUTE
+	static int executeCheck(String stmt, int offset) {
+		if (stmt.length() > offset + 7) {
+			char c1 = stmt.charAt(++offset);
+			char c2 = stmt.charAt(++offset);
+			char c3 = stmt.charAt(++offset);
+			char c4 = stmt.charAt(++offset);
+			char c5 = stmt.charAt(++offset);
+			char c6 = stmt.charAt(++offset);
+			char c7 = stmt.charAt(++offset);
+			if ((c1 == 'X' || c1 == 'x') && (c2 == 'E' || c2 == 'e')
+				            && (c3 == 'C' || c3 == 'c')
+				            && (c4 == 'U' || c4 == 'u')
+							&& (c5 == 'T' || c5 == 't')
+				            && (c6 == 'E' || c6 == 'e')
+				            && (c7 == ' ' || c7 == '\t' || c7 == '\r' || c7 == '\n')) {
+				return EXECUTE;
+			}
+		}
+
+		return OTHER;
+	}
 }
