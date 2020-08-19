@@ -26,6 +26,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Types;
 import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -136,6 +137,18 @@ public class HetuUtil {
             case "decimal":
                 pkg.length = DECIMAL_DEFAULT;
                 break;
+            case "json":
+                pkg.length = VARCHAR_DEFAULT;
+                break;
+            case "map":
+                pkg.length = VARCHAR_DEFAULT;
+                break;
+            case "array":
+                pkg.length = VARCHAR_DEFAULT;
+                break;
+            case "row":
+                pkg.length = VARCHAR_DEFAULT;
+                break;
             default:
                 pkg.length = 0;
                 break;
@@ -235,15 +248,25 @@ public class HetuUtil {
                 //check that jdbc driver not implement with 4.2 Specification vesion(new type for TIMESTAMP_WITH_TIMEZONE)
                 //identify timestamp and timestamp with timezone by getColumnTypeName
                 else  if(Types.TIMESTAMP == metaData.getColumnType(j)
-                        & "timestamp with time zone".equalsIgnoreCase(metaData.getColumnTypeName(j)))
+                        && "timestamp with time zone".equalsIgnoreCase(metaData.getColumnTypeName(j)))
                 {
                     fieldPacket.type = (byte) (MysqlDefs.FIELD_TYPE_VAR_STRING & 0xff);
                 }
                 // data type: interval, array, map, row, JSON are not standard JDBC type, customize them
-                else if (Types.JAVA_OBJECT == jdbcColumnType) {
+                else if (Types.JAVA_OBJECT == jdbcColumnType)
+                {
                     // 0x1f for dynamic strings, double, float
                     fieldPacket.decimals = (byte) 0x1f;
                     fieldPacket.type = (byte) (MysqlDefs.FIELD_TYPE_VAR_STRING & 0xff);
+                    if(!metaData.getColumnTypeName(j).toLowerCase(Locale.ENGLISH).startsWith("interval")) {
+                        fieldPacket.length = VARCHAR_DEFAULT;
+                    }
+                }
+                else if (Types.ARRAY == jdbcColumnType) {
+                    // 0x1f for dynamic strings, double, float
+                    fieldPacket.decimals = (byte) 0x1f;
+                    fieldPacket.type = (byte) (MysqlDefs.FIELD_TYPE_VAR_STRING & 0xff);
+                    fieldPacket.length = VARCHAR_DEFAULT;
                 } else {
                     if (Types.TINYINT == jdbcColumnType || Types.SMALLINT == jdbcColumnType
                         || Types.INTEGER == jdbcColumnType || Types.BIGINT == jdbcColumnType
