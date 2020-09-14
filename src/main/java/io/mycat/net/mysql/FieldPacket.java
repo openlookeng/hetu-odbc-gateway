@@ -62,6 +62,9 @@ public class FieldPacket extends MySQLPacket {
 	private static final byte[] DEFAULT_CATALOG = "def".getBytes();
 	private static final byte[] FILLER = new byte[2];
 
+	private static final int TYPE_BIT_LITERAL = 16;
+	private static final int CHARSET_INDEX_BINARY = 63;
+
 	public byte[] catalog = DEFAULT_CATALOG;
 	public byte[] db;
 	public byte[] table;
@@ -154,7 +157,12 @@ public class FieldPacket extends MySQLPacket {
 		BufferUtil.writeWithLength(buffer, name, nullVal);
 		BufferUtil.writeWithLength(buffer, orgName, nullVal);
 		buffer.put((byte) 0x0C);
-		BufferUtil.writeUB2(buffer, charsetIndex);
+		if(this.type == TYPE_BIT_LITERAL)
+		{
+			BufferUtil.writeUB2(buffer, CHARSET_INDEX_BINARY);
+		} else {
+			BufferUtil.writeUB2(buffer, charsetIndex);
+		}
 		BufferUtil.writeUB4(buffer, length);
 		buffer.put((byte) (type & 0xff));
 		BufferUtil.writeUB2(buffer, flags);

@@ -124,7 +124,6 @@ public class BinaryRowDataPacket extends MySQLPacket {
 		case Fields.FIELD_TYPE_BLOB:
 		case Fields.FIELD_TYPE_TINY_BLOB:
 		case Fields.FIELD_TYPE_GEOMETRY:
-		case Fields.FIELD_TYPE_BIT:
 		case Fields.FIELD_TYPE_DECIMAL:
 		case Fields.FIELD_TYPE_NEW_DECIMAL:
 			// Fields
@@ -163,6 +162,7 @@ public class BinaryRowDataPacket extends MySQLPacket {
 			short shortVar = ByteUtil.getShort(fv);
 			this.fieldValues.add(ByteUtil.getBytes(shortVar));
 			break;
+		case Fields.FIELD_TYPE_BIT:
 		case Fields.FIELD_TYPE_TINY:
 			// Fields
 			// value (1) -- integer
