@@ -30,6 +30,9 @@ public class ServerParseTest {
 	public static final int MYSQL_COMMENT = 19;
 	public static final int CALL = 20;
 	public static final int DESCRIBE = 21;
+    public static final int PREPARE = 24;
+    public static final int EXECUTE = 25;
+    public static final int DEALLOCATE =  26;
 	 */
 
 	@Test
@@ -202,4 +205,34 @@ public class ServerParseTest {
 		Assert.assertEquals(ServerParse.COMMIT, sqlType);
 	}
 
+    @Test
+    public void testKeywordParse() {
+        String sql = "not-insert statement";
+        int sqlType = ServerParse.parse(sql);
+        Assert.assertEquals(ServerParse.OTHER, sqlType); //make sure not mistaken for ServerParse.INSERT
+    }
+
+    @Test
+    public void testPrepare() {
+        String sql = "PREPARE prepareId from select 1";
+        int result = ServerParse.parse(sql);
+        int sqlType = result & 0xff;
+        Assert.assertEquals(ServerParse.PREPARE, sqlType);
+    }
+
+    @Test
+    public void testExecute() {
+        String sql = "EXECUTE prepareId";
+        int result = ServerParse.parse(sql);
+        int sqlType = result & 0xff;
+        Assert.assertEquals(ServerParse.EXECUTE, sqlType);
+    }
+
+    @Test
+    public void testDeallocatePrepare() {
+        String sql = "DEALLOCATE PREPARE prepareId";
+        int result = ServerParse.parse(sql);
+        int sqlType = result & 0xff;
+        Assert.assertEquals(ServerParse.DEALLOCATE, sqlType);
+    }
 }

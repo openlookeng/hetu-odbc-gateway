@@ -75,13 +75,26 @@ public final class ServerParse {
 		int length = stmt.length();
 		//FIX BUG FOR SQL SUCH AS /XXXX/SQL
 		int rt = -1;
-		for (int i = 0; i < length; ++i) {
-			switch (stmt.charAt(i)) {
-			case ' ':
-			case '\t':
-			case '\r':
-			case '\n':
-				continue;
+        boolean isFirstChart = true;
+        boolean isDivision = true;
+        char c;
+        
+        for (int i = 0; i < length; ++i) {
+            c = stmt.charAt(i);
+            isDivision = ((c == ' ') || (c == '\t') || (c == '\r') || (c == '\n'));
+
+            if (isDivision) {
+                isFirstChart = true;
+                continue;
+            }
+
+            if (!isFirstChart) {
+                continue; // skip medial char
+            }
+
+            isFirstChart = false;
+            
+			switch (c) {
 			case '/':
 				// such as /*!40101 SET character_set_client = @saved_cs_client
 				// */;
