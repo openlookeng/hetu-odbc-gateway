@@ -240,7 +240,7 @@
 		<dependency>
 			<groupId>io.hetu.core</groupId>
 			<artifactId>hetu-jdbc</artifactId>
-			<version>010</version>
+			<version>1.0.1</version>
 		</dependency>
 	</dependencies>
 
