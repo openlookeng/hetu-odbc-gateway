@@ -459,8 +459,9 @@ public abstract class FrontendConnection extends AbstractConnection {
 		}
 	}
 
-	public void ping() {
+	public boolean ping(boolean sendResponse) {
 		write(writeToBuffer(OkPacket.OK, allocate()));
+		return true;
 	}
 
 	public void heartbeat(byte[] data) {

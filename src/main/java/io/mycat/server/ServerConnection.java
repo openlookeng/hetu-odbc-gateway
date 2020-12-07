@@ -26,11 +26,15 @@ package io.mycat.server;
 
 import java.io.IOException;
 import java.nio.channels.NetworkChannel;
+import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.mycat.backend.jdbc.JDBCConnection;
+import io.mycat.net.mysql.OkPacket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -167,10 +171,58 @@ public class ServerConnection extends FrontendConnection {
 		this.isLocked = isLocked;
 	}
 
-	@Override
-	public void ping() {
-		Ping.response(this);
-	}
+    @Override
+    public boolean ping(boolean sendResponse) {
+        if (!(backConn instanceof JDBCConnection)) {
+            if (sendResponse) {
+                write(writeToBuffer(OkPacket.OK, allocate()));
+            }
+            return true;
+        }
+
+        Connection con = ((JDBCConnection)backConn).getCon();
+        ResultSet rsOutput = null;
+        Statement stmtOutput = null;
+        String executeSql = "/* ping */ select 1";
+        boolean isActive = true;
+
+        try {
+            con.setCatalog(catalog);
+            con.setSchema(schema);
+
+            stmtOutput =  con.createStatement();
+            rsOutput   = stmtOutput.executeQuery(executeSql);
+
+            if (sendResponse) {
+                // ping server by select ok, response to client
+                write(writeToBuffer(OkPacket.OK, allocate()));
+            }
+        } catch (SQLException e) {
+            if (sendResponse) {
+                writeErrMessage(ErrorCode.ER_SERVER_SHUTDOWN, "DBServer shutdown.");
+            }
+            
+            isActive = false;
+        } finally {
+            if (rsOutput != null) {
+                try {
+                    rsOutput.close();
+                } catch (SQLException e) {
+                    ; // do nothing
+                }
+            }
+
+            if (stmtOutput != null) {
+                try {
+                    stmtOutput.close();
+                } catch (SQLException e) {
+                    ; // do nothing
+                }
+            }
+        }
+
+        return isActive;
+    }
 
 	@Override
 	public void heartbeat(byte[] data) {

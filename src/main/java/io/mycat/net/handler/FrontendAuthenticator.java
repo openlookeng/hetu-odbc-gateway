@@ -137,6 +137,11 @@ public class FrontendAuthenticator implements NIOHandler {
             return;
         }
 
+        // ping DBserver to make sure backend connection setup successfully
+        if (!source.ping(false)) {
+            failure(ErrorCode.ER_SERVER_SHUTDOWN, "DBserver shutdown.");
+            return;
+        }
         success(auth);
 
     }

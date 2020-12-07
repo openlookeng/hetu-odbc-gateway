@@ -77,7 +77,7 @@ public class FrontendCommandHandler implements NIOHandler
                 break;
             case MySQLPacket.COM_PING:
                 commands.doPing();
-                source.ping();
+                source.ping(true);
                 break;
             case MySQLPacket.COM_QUIT:
                 commands.doQuit();
@@ -119,7 +119,7 @@ public class FrontendCommandHandler implements NIOHandler
                 MycatConfig config = MycatServer.getInstance().getConfig();
                 if( config.getSystem().getIgnoreUnknownCommand()==1){
                     LOGGER.warn("Unknown command:{}",data[4]);
-                    source.ping();
+                    source.ping(true);
                 }else {
                     LOGGER.error("Unknown command:{}",new String(data));
                     source.writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR,
