@@ -79,9 +79,13 @@ public class FrontendAuthenticator implements NIOHandler {
 
     private final String serverConnectUrl = "_server_connect_url";
 
+    private final String serverConnectPassword = "_server_connect_password";
+
     private int serverDefaultPort = 8080;
 
     private final String stringUser = "user";
+
+    private final String stringPassword = "password";
 
     private final String stringIp = "ip";
 
@@ -125,6 +129,12 @@ public class FrontendAuthenticator implements NIOHandler {
             auth.user = hostInfo.getProperty(stringUser);
             ip = hostInfo.getProperty(stringIp);
             port = Integer.parseInt(hostInfo.getProperty(stringPort));
+
+            String inputPassword = auth.connectAttrs.get(serverConnectPassword);
+            if ((inputPassword != null) && (connectProperty.getProperty(stringPassword) == null))
+            {
+                connectProperty.setProperty(stringPassword, inputPassword);
+            }
 
             DBHostConfig config = new DBHostConfig(auth.user, ip, port, url, auth.user, null, null);
             config.setDbType("Hetu");
